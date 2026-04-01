@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Local Falcon – Campaign Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#0b0f1a;--surface:#111827;--surface2:#161f2e;
+  --border:#1e2d40;--muted:#374151;
+  --text:#e2e8f0;--sub:#6b7280;--dim:#374151;
+  --green:#22c55e;--yellow:#f59e0b;--red:#ef4444;
+  --purple:#8b5cf6;--blue:#60a5fa;
+  --radius:12px;
+}
+
+html{font-size:16px}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+     background:var(--bg);color:var(--text);min-height:100vh;
+     padding:20px 16px 60px}
+
+/* ── HEADER ── */
+header{display:flex;align-items:center;justify-content:space-between;
+       flex-wrap:wrap;gap:10px;margin-bottom:24px}
+h1{font-size:clamp(1.1rem,4vw,1.5rem);font-weight:700;color:#fff;display:flex;align-items:center;gap:8px}
+h1 .acc{color:var(--purple)}
+
+.hdr-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.live{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--sub)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0}
+.dot.spin{background:var(--yellow);animation:blink 1s infinite}
+.dot.err{background:var(--red);animation:none}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+button{cursor:pointer;border:none;outline:none;font-family:inherit}
+.btn-sec{background:var(--surface);border:1px solid var(--border);color:var(--sub);
+         padding:5px 14px;border-radius:7px;font-size:.8rem;transition:.15s}
+.btn-sec:hover{color:var(--text);border-color:var(--muted)}
+
+/* ── SUMMARY CARDS ── */
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px}
+.card.hi{border-color:#4c1d95}
+.card .lbl{font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--sub);margin-bottom:5px}
+.card .val{font-size:clamp(1.4rem,4vw,1.9rem);font-weight:700;color:#fff}
+.card.hi .val{color:#a78bfa}
+.card .hint{font-size:.72rem;color:var(--sub);margin-top:3px}
+
+/* ── CAMPAIGN CARDS ── */
+.sec-title{font-size:.75rem;font-weight:600;text-transform:uppercase;
+           letter-spacing:.07em;color:var(--sub);margin-bottom:12px}
+#camp-list{display:flex;flex-direction:column;gap:10px}
+
+.camp-card{background:var(--surface);border:1px solid var(--border);
+           border-radius:var(--radius);overflow:hidden;transition:border-color .2s}
+.camp-card.open{border-color:var(--purple)}
+
+/* header row – desktop */
+.camp-row{display:grid;align-items:center;gap:8px;padding:14px 16px;
+          cursor:pointer;user-select:none;transition:background .15s;
+          /* mobile: 2-col */
+          grid-template-columns:1fr auto}
+.camp-row:hover{background:var(--surface2)}
+
+/* on desktop expand to full row */
+@media(min-width:700px){
+  .camp-row{grid-template-columns:1fr 130px 110px 110px 140px 36px}
+}
+
+.row-main{min-width:0}
+.row-name{font-weight:600;font-size:.93rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row-sub{font-size:.74rem;color:var(--sub);margin-top:2px}
+
+/* mobile metric pills (hidden on desktop) */
+.mob-metrics{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap}
+@media(min-width:700px){.mob-metrics{display:none}}
+.mob-pill{display:flex;flex-direction:column;align-items:center;
+          background:var(--surface2);border:1px solid var(--border);
+          border-radius:8px;padding:6px 10px;min-width:62px}
+.mob-pill .mp-lbl{font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--sub);margin-bottom:2px}
+.mob-pill .mp-val{font-size:.95rem;font-weight:700}
+
+/* desktop metric cols (hidden on mobile) */
+.desk-col{display:none}
+@media(min-width:700px){.desk-col{display:flex;flex-direction:column;gap:2px}}
+.desk-col .d-lbl{font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;color:var(--sub)}
+.desk-col .d-val{font-size:1rem;font-weight:700}
+.desk-col .d-chg{font-size:.7rem}
+
+/* SoLV bar (desktop) */
+.solv-col{display:none}
+@media(min-width:700px){.solv-col{display:flex;flex-direction:column;gap:4px}}
+.solv-col .d-lbl{font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;color:var(--sub)}
+.solv-col .d-val{font-size:1rem;font-weight:700}
+.solv-bar-bg{height:5px;background:var(--dim);border-radius:3px;overflow:hidden;width:100%}
+.solv-bar-fill{height:100%;border-radius:3px;transition:width .5s}
+
+.toggle-btn{background:none;border:1px solid var(--border);border-radius:6px;
+            color:var(--sub);width:28px;height:28px;font-size:.85rem;
+            display:flex;align-items:center;justify-content:center;
+            transition:.15s;flex-shrink:0}
+.camp-card.open .toggle-btn{color:var(--purple);border-color:var(--purple)}
+
+/* colour helpers */
+.g{color:#4ade80}.y{color:#fbbf24}.r{color:#f87171}
+.up{color:#4ade80}.dn{color:#f87171}.zr{color:var(--sub)}
+
+/* ── DETAIL PANEL ── */
+.camp-detail{display:none;border-top:1px solid var(--border);padding:16px}
+.camp-card.open .camp-detail{display:block}
+.det-loading{color:var(--sub);font-size:.85rem}
+
+/* trend section */
+.trend-section{margin-bottom:20px}
+.det-title{font-size:.72rem;font-weight:600;text-transform:uppercase;
+           letter-spacing:.06em;color:var(--sub);margin-bottom:10px}
+
+.next-run-banner{background:var(--surface2);border:1px dashed var(--dim);
+                 border-radius:9px;padding:14px 16px;font-size:.85rem;
+                 display:flex;align-items:flex-start;gap:10px;line-height:1.5}
+.next-run-banner .icon{font-size:1.2rem;flex-shrink:0;margin-top:1px}
+.next-run-banner strong{color:#fff}
+.next-run-banner p{color:var(--sub);margin-top:3px;font-size:.8rem}
+
+.chart-wrap{position:relative;width:100%;height:200px}
+
+/* breakdown */
+.bk-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+@media(max-width:540px){.bk-grid{grid-template-columns:1fr}}
+
+.bk-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.bk-lbl{font-size:.72rem;color:var(--sub);width:60px;text-align:right;flex-shrink:0}
+.bk-bg{flex:1;height:7px;background:var(--dim);border-radius:4px;overflow:hidden}
+.bk-fill{height:100%;border-radius:4px}
+.bk-n{font-size:.72rem;color:var(--sub);width:24px;text-align:right;flex-shrink:0}
+
+/* keyword table */
+.kw-wrap{overflow-x:auto;margin-bottom:16px;-webkit-overflow-scrolling:touch}
+.kw-table{width:100%;border-collapse:collapse;font-size:.82rem;min-width:420px}
+.kw-table th{text-align:left;padding:7px 10px;color:var(--sub);
+             font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;
+             border-bottom:1px solid var(--border);font-weight:600;white-space:nowrap}
+.kw-table td{padding:8px 10px;border-bottom:1px solid var(--surface2)}
+.kw-table tr:last-child td{border-bottom:none}
+.kw-table tr:hover td{background:var(--surface2)}
+
+.kw-kw{max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* rank badge */
+.rank-badge{display:inline-flex;align-items:center;justify-content:center;
+            width:28px;height:20px;border-radius:5px;font-size:.7rem;font-weight:700}
+.r1{background:#14532d;color:#4ade80}
+.r3{background:#365314;color:#a3e635}
+.r10{background:#713f12;color:#fbbf24}
+.r20{background:#4c1d1d;color:#fca5a5}
+.r20p{background:#1e1b4b;color:#a5b4fc}
+
+.det-footer{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:4px}
+.det-footer a{font-size:.82rem;color:var(--purple);text-decoration:none;
+              border:1px solid #4c1d95;padding:5px 14px;border-radius:7px;transition:.15s}
+.det-footer a:hover{background:#2e1065}
+.det-footer span{font-size:.75rem;color:var(--sub)}
+
+footer{margin-top:44px;text-align:center;font-size:.72rem;color:var(--dim)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🦅 Local Falcon <span class="acc">Dashboard</span></h1>
+  <div class="hdr-right">
+    <div class="live"><span class="dot spin" id="dot"></span><span id="status-msg">Loading…</span></div>
+    <button class="btn-sec" onclick="init()">↻ Refresh</button>
+  </div>
+</header>
+
+<!-- Summary -->
+<div class="summary">
+  <div class="card hi"><div class="lbl">Campaigns</div><div class="val" id="s-tot">–</div></div>
+  <div class="card">   <div class="lbl">Total Scans</div><div class="val" id="s-scans">–</div></div>
+  <div class="card">   <div class="lbl">Avg SoLV</div><div class="val" id="s-solv">–</div><div class="hint">Share of Local Voice ↑</div></div>
+  <div class="card">   <div class="lbl">Avg ARP</div><div class="val" id="s-arp">–</div><div class="hint">Avg Rank Position ↓</div></div>
+  <div class="card">   <div class="lbl">Refreshed</div><div class="val" id="s-ts" style="font-size:1rem;padding-top:4px">–</div><div class="hint">auto every 60s</div></div>
+</div>
+
+<div class="sec-title">Campaigns — click any row to see analytics &amp; trends</div>
+<div id="camp-list"><div style="color:var(--sub);font-size:.85rem;padding:16px 0">Loading…</div></div>
+
+<footer>Local Falcon Dashboard &nbsp;·&nbsp; key ···<span id="k-hint"></span></footer>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   CONFIG
+═══════════════════════════════════════════════════════════ */
+const API_KEY = '47e47bf29b236c8e1ddcf2733bbdb518';
+const BASE    = 'https://api.localfalcon.com';
+document.getElementById('k-hint').textContent = API_KEY.slice(-6);
+
+/* ═══════════════════════════════════════════════════════════
+   API HELPERS
+═══════════════════════════════════════════════════════════ */
+async function apiPost(path, extra={}) {
+  const body = new URLSearchParams({api_key:API_KEY,...extra});
+  const res  = await fetch(BASE+path,{method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},body});
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const j=await res.json();
+  if(!j.success) throw new Error(j.message||'API error');
+  return j.data;
+}
+async function apiGet(path,params={}) {
+  const q=new URLSearchParams({api_key:API_KEY,...params});
+  const res=await fetch(`${BASE}${path}?${q}`);
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const j=await res.json();
+  if(!j.success) throw new Error(j.message||'API error');
+  return j.data;
+}
+async function fetchAllCampaigns() {
+  const all=[]; let token=null;
+  do {
+    const p=token?{next_token:token}:{};
+    const d=await apiPost('/v2/campaigns/',p);
+    all.push(...(d.reports||[]));
+    token=d.next_token||null;
+  } while(token);
+  return all;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   COLOUR / FORMAT HELPERS
+═══════════════════════════════════════════════════════════ */
+const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const n=(v,d=1)=>parseFloat(v??0).toFixed(d);
+function arpCls(v){const f=parseFloat(v);return f<5?'g':f<=12?'y':'r'}
+function solvCls(v){const f=parseFloat(v);return f>50?'g':f>=20?'y':'r'}
+function solvRGB(v){const f=parseFloat(v);return f>50?'#22c55e':f>=20?'#f59e0b':'#ef4444'}
+function chgHtml(v){
+  const f=parseFloat(v??0);
+  if(f>0) return`<span class="up">▲ ${Math.abs(f).toFixed(2)}</span>`;
+  if(f<0) return`<span class="dn">▼ ${Math.abs(f).toFixed(2)}</span>`;
+  return`<span class="zr">–</span>`;
+}
+function bkColor(label){
+  const l=(label||'').toLowerCase();
+  if(l.includes('1st')||l.includes('above 95'))  return'#22c55e';
+  if(l.includes('top 3')||l.includes('85'))       return'#4ade80';
+  if(l.includes('top 10')||l.includes('70'))      return'#a3e635';
+  if(l.includes('top 20')||l.includes('50'))      return'#f59e0b';
+  return'#ef4444';
+}
+function rankBadge(arp){
+  const f=parseFloat(arp);
+  if(f<=1)  return`<span class="rank-badge r1">#1</span>`;
+  if(f<=3)  return`<span class="rank-badge r3">T3</span>`;
+  if(f<=10) return`<span class="rank-badge r10">T10</span>`;
+  if(f<=20) return`<span class="rank-badge r20">T20</span>`;
+  return`<span class="rank-badge r20p">20+</span>`;
+}
+function daysUntil(dateStr){
+  if(!dateStr) return null;
+  const parts=dateStr.split('/');
+  if(parts.length<3) return null;
+  const d=new Date(parseInt(parts[2]),parseInt(parts[0])-1,parseInt(parts[1]));
+  const diff=Math.ceil((d-Date.now())/86400000);
+  return diff>0?diff:0;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RENDER CAMPAIGN ROW
+═══════════════════════════════════════════════════════════ */
+let chartInstances={};
+
+function renderCampaign(c,idx){
+  const id=`c${idx}`;
+  const solv=parseFloat(c.solv??0);
+  const arp=parseFloat(c.arp??0);
+  const atrp=parseFloat(c.atrp??0);
+  const scans=parseInt(c.scans??0);
+  const solvW=Math.min(solv,100);
+
+  return`
+<div class="camp-card" id="${id}" data-key="${esc(c.report_key)}" data-next="${esc(c.next_run_date||'')}">
+  <div class="camp-row" onclick="toggleCard('${id}')">
+    <!-- always visible: name + sub + mobile pills -->
+    <div class="row-main">
+      <div class="row-name">${esc(c.name)}</div>
+      <div class="row-sub">Last run: ${esc(c.last_run_date||'–')} &nbsp;·&nbsp; ${scans} scans &nbsp;·&nbsp; ${esc(c.grid_size)}×${esc(c.grid_size)} grid</div>
+      <!-- mobile-only pills -->
+      <div class="mob-metrics">
+        <div class="mob-pill"><span class="mp-lbl">SoLV</span><span class="mp-val ${solvCls(solv)}">${n(solv)}%</span></div>
+        <div class="mob-pill"><span class="mp-lbl">ARP</span><span class="mp-val ${arpCls(arp)}">${n(arp)}</span></div>
+        <div class="mob-pill"><span class="mp-lbl">ATRP</span><span class="mp-val ${arpCls(atrp)}">${n(atrp)}</span></div>
+      </div>
+    </div>
+
+    <!-- desktop metric cols -->
+    <div class="desk-col">
+      <span class="d-lbl">ARP ↓</span>
+      <span class="d-val ${arpCls(arp)}">${n(arp)}</span>
+      <span class="d-chg">${chgHtml(c.arp_move)}</span>
+    </div>
+    <div class="desk-col">
+      <span class="d-lbl">ATRP ↓</span>
+      <span class="d-val ${arpCls(atrp)}">${n(atrp)}</span>
+      <span class="d-chg">${chgHtml(c.atrp_move)}</span>
+    </div>
+    <div class="solv-col">
+      <span class="d-lbl">SoLV ↑</span>
+      <span class="d-val ${solvCls(solv)}">${n(solv)}%</span>
+      <div class="solv-bar-bg"><div class="solv-bar-fill" style="width:${solvW}%;background:${solvRGB(solv)}"></div></div>
+      <span class="d-chg" style="margin-top:2px">${chgHtml(c.solv_move)}</span>
+    </div>
+
+    <button class="toggle-btn" tabindex="-1">▸</button>
+  </div>
+
+  <div class="camp-detail" id="${id}-det">
+    <div class="det-loading">Loading analytics…</div>
+  </div>
+</div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOGGLE + LAZY LOAD DETAIL
+═══════════════════════════════════════════════════════════ */
+const detailCache={};
+
+async function toggleCard(id){
+  const card=document.getElementById(id);
+  const open=card.classList.toggle('open');
+  card.querySelector('.toggle-btn').textContent=open?'▾':'▸';
+  if(!open) return;
+
+  const key=card.dataset.key;
+  const det=document.getElementById(id+'-det');
+  if(detailCache[key]){det.innerHTML=detailCache[key];return;}
+
+  try{
+    // 1. load latest detail
+    const data=await apiGet(`/v2/campaigns/${key}/`);
+
+    // 2. load all historical runs for trend
+    const runs=data.runs||[];
+    let trendData=[];
+
+    if(runs.length>1){
+      // fetch each run in parallel
+      const runResults=await Promise.all(
+        runs.map(r=>apiGet(`/v2/campaigns/${key}/`,{run:r})
+              .then(d=>({date:r,arp:parseFloat(d.arp),atrp:parseFloat(d.atrp),solv:parseFloat(d.solv)}))
+              .catch(()=>null))
+      );
+      trendData=runResults.filter(Boolean).sort((a,b)=>a.date.localeCompare(b.date));
+    } else {
+      // single run – store as baseline in localStorage
+      const stored=loadHistory(key);
+      const entry={date:runs[0]||data.date_last_run,
+                   arp:parseFloat(data.arp),atrp:parseFloat(data.atrp),solv:parseFloat(data.solv)};
+      if(!stored.find(e=>e.date===entry.date)) stored.push(entry);
+      saveHistory(key,stored);
+      trendData=stored;
+    }
+
+    const html=renderDetail(data,trendData,id);
+    detailCache[key]=html;
+    det.innerHTML=html;
+
+    // draw chart after inserting DOM
+    if(trendData.length>=2){
+      drawTrendChart(id,trendData);
+    }
+  } catch(e){
+    det.innerHTML=`<div style="color:var(--red);font-size:.85rem">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+/* localStorage trend history */
+function loadHistory(key){
+  try{return JSON.parse(localStorage.getItem('lf_trend_'+key)||'[]');}catch{return[];}
+}
+function saveHistory(key,arr){
+  try{localStorage.setItem('lf_trend_'+key,JSON.stringify(arr));}catch{}
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RENDER DETAIL PANEL
+═══════════════════════════════════════════════════════════ */
+function renderDetail(d,trendData,id){
+  const rd=d.run_data||{};
+  const bk=rd.breakdown||{};
+  const kws=rd.by_keyword||[];
+  const hasMultiRuns=trendData.length>=2;
+  const nextDate=d.date_next_run||'';
+  const days=daysUntil(nextDate);
+
+  /* ── trend section ── */
+  let trendHtml='';
+  if(hasMultiRuns){
+    trendHtml=`
+    <div class="trend-section">
+      <div class="det-title">Trend — ${trendData.length} runs</div>
+      <div class="chart-wrap"><canvas id="chart-${id}"></canvas></div>
+    </div>`;
+  } else {
+    trendHtml=`
+    <div class="trend-section">
+      <div class="det-title">Trend</div>
+      <div class="next-run-banner">
+        <span class="icon">📈</span>
+        <div>
+          <strong>Baseline established — ${esc(trendData[0]?.date||d.date_last_run||'')}</strong>
+          <p>ARP ${n(trendData[0]?.arp??d.arp)} &nbsp;·&nbsp; ATRP ${n(trendData[0]?.atrp??d.atrp)} &nbsp;·&nbsp; SoLV ${n(trendData[0]?.solv??d.solv)}%</p>
+          <p style="margin-top:4px">
+            ${days!==null
+              ? `Next scan: <strong style="color:#fff">${esc(nextDate)}</strong> &nbsp;(${days===0?'today':days+' day'+(days===1?'':'s')+' away'})`
+              : 'Next run: '+esc(nextDate)}
+            &nbsp;— trend chart will appear after the second run.
+          </p>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  /* ── breakdown bars ── */
+  const arpBk=bk.arp||[];
+  const solvBk=bk.solv||[];
+  const maxA=Math.max(...arpBk.map(r=>r.value),1);
+  const maxS=Math.max(...solvBk.map(r=>r.value),1);
+
+  const arpBars=arpBk.map(r=>`
+    <div class="bk-row">
+      <span class="bk-lbl">${esc(r.label)}</span>
+      <div class="bk-bg"><div class="bk-fill" style="width:${Math.round(r.value/maxA*100)}%;background:${bkColor(r.label)}"></div></div>
+      <span class="bk-n">${r.value}</span>
+    </div>`).join('');
+
+  const solvBars=solvBk.map(r=>`
+    <div class="bk-row">
+      <span class="bk-lbl" style="width:68px;font-size:.65rem">${esc(r.label)}</span>
+      <div class="bk-bg"><div class="bk-fill" style="width:${Math.round(r.value/maxS*100)}%;background:${bkColor(r.label)}"></div></div>
+      <span class="bk-n">${r.value}</span>
+    </div>`).join('');
+
+  /* ── keyword rows ── */
+  const kwRows=kws.map(k=>`
+    <tr>
+      <td class="kw-kw" title="${esc(k.keyword)}">${esc(k.keyword)}</td>
+      <td>${rankBadge(k.arp)}</td>
+      <td class="${arpCls(k.arp)}">${n(k.arp)}</td>
+      <td class="${arpCls(k.atrp)}">${n(k.atrp)}</td>
+      <td class="${solvCls(k.solv)}">${n(k.solv)}%</td>
+    </tr>`).join('');
+
+  return`
+${trendHtml}
+
+<div class="bk-grid">
+  <div>
+    <div class="det-title">ARP rank distribution (last run)</div>
+    ${arpBars||'<span style="color:var(--sub);font-size:.8rem">No data</span>'}
+  </div>
+  <div>
+    <div class="det-title">SoLV distribution (last run)</div>
+    ${solvBars||'<span style="color:var(--sub);font-size:.8rem">No data</span>'}
+  </div>
+</div>
+
+${kwRows?`
+<div class="det-title">Keywords — Last Run</div>
+<div class="kw-wrap">
+  <table class="kw-table">
+    <thead><tr><th>Keyword</th><th></th><th>ARP ↓</th><th>ATRP ↓</th><th>SoLV ↑</th></tr></thead>
+    <tbody>${kwRows}</tbody>
+  </table>
+</div>`:''}
+
+<div class="det-footer">
+  ${d.public_url?`<a href="${esc(d.public_url)}" target="_blank" rel="noopener">↗ Full Report</a>`:''}
+  <span>Last run: ${esc(d.date_last_run||'–')} &nbsp;·&nbsp; Next: ${esc(d.date_next_run||'–')}</span>
+</div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CHART.JS TREND CHART
+═══════════════════════════════════════════════════════════ */
+function drawTrendChart(cardId,data){
+  const canvas=document.getElementById('chart-'+cardId);
+  if(!canvas) return;
+
+  // destroy previous instance if any
+  if(chartInstances[cardId]) chartInstances[cardId].destroy();
+
+  const labels=data.map(d=>d.date);
+  chartInstances[cardId]=new Chart(canvas,{
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {label:'ARP ↓',data:data.map(d=>d.arp),
+         borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,.08)',
+         borderWidth:2,pointRadius:4,tension:.35,yAxisID:'y'},
+        {label:'ATRP ↓',data:data.map(d=>d.atrp),
+         borderColor:'#60a5fa',backgroundColor:'rgba(96,165,250,.08)',
+         borderWidth:2,pointRadius:4,tension:.35,yAxisID:'y'},
+        {label:'SoLV % ↑',data:data.map(d=>d.solv),
+         borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,.08)',
+         borderWidth:2,pointRadius:4,tension:.35,yAxisID:'y2'},
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{labels:{color:'#9ca3af',font:{size:11},usePointStyle:true,boxWidth:8}},
+        tooltip:{
+          backgroundColor:'#1e293b',borderColor:'#334155',borderWidth:1,
+          titleColor:'#e2e8f0',bodyColor:'#9ca3af',
+          callbacks:{
+            label:ctx=>{
+              const s=ctx.dataset.label;
+              const v=ctx.parsed.y.toFixed(2);
+              const prev=ctx.dataIndex>0?ctx.dataset.data[ctx.dataIndex-1]:null;
+              const diff=prev!==null?(ctx.parsed.y-prev).toFixed(2):null;
+              const arrow=diff!==null?(parseFloat(diff)>0?' ▲':parseFloat(diff)<0?' ▼':' –'):'';
+              return` ${s}: ${v}${diff!==null?arrow+Math.abs(diff):''}`;
+            }
+          }
+        }
+      },
+      scales:{
+        x:{ticks:{color:'#6b7280',font:{size:10}},grid:{color:'#1e2d40'}},
+        y:{position:'left',ticks:{color:'#6b7280',font:{size:10}},
+           grid:{color:'#1e2d40'},title:{display:true,text:'ARP / ATRP',color:'#6b7280',font:{size:10}}},
+        y2:{position:'right',ticks:{color:'#6b7280',font:{size:10}},
+            grid:{drawOnChartArea:false},
+            title:{display:true,text:'SoLV %',color:'#6b7280',font:{size:10}}}
+      }
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MAIN INIT
+═══════════════════════════════════════════════════════════ */
+let timer;
+function setStatus(state,msg){
+  const d=document.getElementById('dot');
+  d.className='dot'+(state==='err'?' err':state==='spin'?' spin':'');
+  document.getElementById('status-msg').textContent=msg;
+}
+
+async function init(){
+  clearTimeout(timer);
+  setStatus('spin','Fetching…');
+  // clear old chart instances on refresh
+  Object.values(chartInstances).forEach(c=>{try{c.destroy()}catch{}});
+  chartInstances={};
+
+  try{
+    const camps=await fetchAllCampaigns();
+
+    const total=camps.reduce((s,c)=>s+parseInt(c.scans??0),0);
+    const avgSolv=camps.length?(camps.reduce((s,c)=>s+parseFloat(c.solv??0),0)/camps.length).toFixed(1):'–';
+    const avgArp =camps.length?(camps.reduce((s,c)=>s+parseFloat(c.arp??0),0)/camps.length).toFixed(1):'–';
+
+    document.getElementById('s-tot').textContent  =camps.length;
+    document.getElementById('s-scans').textContent=total.toLocaleString();
+    document.getElementById('s-solv').textContent =avgSolv+'%';
+    document.getElementById('s-arp').textContent  =avgArp;
+    document.getElementById('s-ts').textContent   =new Date().toLocaleTimeString();
+
+    camps.sort((a,b)=>parseFloat(b.solv??0)-parseFloat(a.solv??0));
+
+    document.getElementById('camp-list').innerHTML=
+      camps.map((c,i)=>renderCampaign(c,i)).join('');
+
+    setStatus('ok',camps.length+' campaigns · '+new Date().toLocaleTimeString());
+  }catch(e){
+    setStatus('err','Error');
+    document.getElementById('camp-list').innerHTML=
+      `<div style="color:var(--red);font-size:.85rem;padding:12px">Error: ${esc(e.message)}</div>`;
+  }
+  timer=setTimeout(init,60000);
+}
+
+init();
+</script>
+</body>
+</html>
