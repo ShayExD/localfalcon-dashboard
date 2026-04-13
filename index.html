@@ -439,6 +439,7 @@ function renderDetail(d,trendData,id){
           <span class="tcb-title">ARP <small style="color:var(--sub)">(↓ better)</small></span>
           ${deltaHtml(dArp)}
         </div>
+        <div style="font-size:.7rem;color:var(--sub);margin-bottom:6px;line-height:1.4">המיקום הממוצע בו מופיע העסק בחיפושים — ככל שנמוך יותר, טוב יותר</div>
         <div class="tcb-val ${arpCls(last.arp)}">${n(last.arp)}</div>
         <div class="tcb-wrap"><canvas id="chart-arp-${id}"></canvas></div>
       </div>
@@ -447,6 +448,7 @@ function renderDetail(d,trendData,id){
           <span class="tcb-title">ATRP <small style="color:var(--sub)">(↓ better)</small></span>
           ${deltaHtml(dAtrp)}
         </div>
+        <div style="font-size:.7rem;color:var(--sub);margin-bottom:6px;line-height:1.4">המיקום הממוצע בתוצאה הגבוהה ביותר שהעסק מגיע אליה — ככל שנמוך יותר, טוב יותר</div>
         <div class="tcb-val ${arpCls(last.atrp)}">${n(last.atrp)}</div>
         <div class="tcb-wrap"><canvas id="chart-atrp-${id}"></canvas></div>
       </div>
@@ -455,6 +457,7 @@ function renderDetail(d,trendData,id){
           <span class="tcb-title">SoLV % <small style="color:var(--sub)">(↑ better)</small></span>
           ${deltaHtml(dSolv,'%')}
         </div>
+        <div style="font-size:.7rem;color:var(--sub);margin-bottom:6px;line-height:1.4">אחוז הנקודות על המפה שבהן העסק מופיע בטופ 3 — ככל שגבוה יותר, טוב יותר</div>
         <div class="tcb-val ${solvCls(last.solv)}">${n(last.solv)}%</div>
         <div class="tcb-wrap"><canvas id="chart-solv-${id}"></canvas></div>
       </div>
