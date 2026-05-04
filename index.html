@@ -173,6 +173,32 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit}
 .det-footer span{font-size:.75rem;color:var(--sub)}
 
 footer{margin-top:44px;text-align:center;font-size:.72rem;color:var(--dim)}
+
+/* ── AHREFS SECTION ── */
+.ahrefs-section{margin-top:4px;padding-top:16px;border-top:1px solid var(--border)}
+.ahrefs-updated{font-size:.62rem;color:var(--dim);text-transform:none;letter-spacing:0;margin-left:6px;font-weight:400}
+.ahrefs-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px}
+@media(max-width:600px){.ahrefs-stats{grid-template-columns:repeat(2,1fr)}}
+.as-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+.as-lbl{font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--sub);margin-bottom:3px}
+.as-val{font-size:1rem;font-weight:700;color:#fff}
+.as-sub{font-size:.65rem;color:var(--dim);margin-top:2px}
+.link-alert{padding:10px 14px;border-radius:8px;font-size:.8rem;margin-bottom:12px;line-height:1.4}
+.link-alert.warn{background:#2d1a00;border:1px solid #713f12;color:#fbbf24}
+.link-alert.info{background:#0c1a2e;border:1px solid #1e40af;color:#93c5fd}
+.link-alert.ok{background:#052e1a;border:1px solid #14532d;color:#4ade80}
+.dr-badge{display:inline-flex;align-items:center;justify-content:center;
+          width:30px;height:20px;border-radius:4px;font-size:.7rem;font-weight:700}
+.dr-hi{background:#14532d;color:#4ade80}
+.dr-med{background:#365314;color:#a3e635}
+.dr-lo{background:#713f12;color:#fbbf24}
+.dr-vlo{background:#2a1a1a;color:#fca5a5}
+.lq-ok{color:#4ade80;font-size:.72rem}
+.lq-suspicious{color:#f59e0b;font-size:.72rem}
+.lq-spam{color:#ef4444;font-size:.72rem}
+.live-ratio-bar{display:flex;align-items:center;gap:6px;margin-top:4px}
+.lrb-bg{flex:1;height:4px;background:var(--dim);border-radius:2px;overflow:hidden}
+.lrb-fill{height:100%;border-radius:2px;transition:width .5s}
 </style>
 </head>
 <body>
@@ -203,8 +229,9 @@ footer{margin-top:44px;text-align:center;font-size:.72rem;color:var(--dim)}
 /* ═══════════════════════════════════════════════════════════
    CONFIG
 ═══════════════════════════════════════════════════════════ */
-const API_KEY = '47e47bf29b236c8e1ddcf2733bbdb518';
-const BASE    = 'https://api.localfalcon.com';
+const API_KEY  = '47e47bf29b236c8e1ddcf2733bbdb518';
+const BASE     = 'https://api.localfalcon.com';
+const AHREFS_JSON = 'https://raw.githubusercontent.com/ShayExD/localfalcon-dashboard/main/ahrefs-data.json';
 document.getElementById('k-hint').textContent = API_KEY.slice(-6);
 
 /* ═══════════════════════════════════════════════════════════
@@ -278,9 +305,131 @@ function daysUntil(dateStr){
 }
 
 /* ═══════════════════════════════════════════════════════════
-   RENDER CAMPAIGN ROW
+   AHREFS HELPERS
 ═══════════════════════════════════════════════════════════ */
 let chartInstances={};
+let ahrefsData={};
+
+function getDomainData(campaignName){
+  const n=(campaignName||'').toLowerCase();
+  for(const [domain,data] of Object.entries(ahrefsData)){
+    const kws=data.campaign_keywords||[];
+    if(kws.some(kw=>n.includes(kw.toLowerCase()))) return{domain,...data};
+  }
+  return null;
+}
+
+function isSuspiciousLink(domain,isSpam){
+  if(isSpam) return 'spam';
+  const d=domain.toLowerCase();
+  const suspTlds=['.shop','.space','.website','.store','.agency','.online'];
+  const suspKws=['seo','ranking','backlink','guestpost','guest-post','kawaii','lixil','linkrank'];
+  const hasTld=suspTlds.some(t=>d.endsWith(t));
+  const hasKw=suspKws.some(k=>d.includes(k));
+  if(hasTld&&hasKw) return 'suspicious';
+  return 'ok';
+}
+
+function drBadge(dr){
+  const v=parseFloat(dr||0);
+  const cls=v>=50?'dr-hi':v>=25?'dr-med':v>=10?'dr-lo':'dr-vlo';
+  return`<span class="dr-badge ${cls}">${Math.round(v)}</span>`;
+}
+
+function renderAhrefsSection(campaignName){
+  const dd=getDomainData(campaignName);
+  if(!Object.keys(ahrefsData).length) return'';
+  if(!dd) return`<div class="ahrefs-section"><div class="det-title">🔗 SEO &amp; Backlinks</div><span style="color:var(--sub);font-size:.8rem">No Ahrefs data matched for this campaign</span></div>`;
+
+  const bl=dd.backlinks||{};
+  const org=dd.organic||{};
+  const rds=dd.recent_refdomains||[];
+
+  const liveRatio=bl.all_time_refdomains>0?bl.live_refdomains/bl.all_time_refdomains:0;
+  const liveRatioPct=Math.round(liveRatio*100);
+  const lrColor=liveRatioPct>=40?'var(--green)':liveRatioPct>=25?'var(--yellow)':'var(--red)';
+
+  // alert logic
+  let alertHtml='';
+  if(bl.live_refdomains<80){
+    alertHtml=`<div class="link-alert warn">⚠️ <strong>קנה לינקים!</strong> רק ${bl.live_refdomains} referring domains חיים — מומלץ לבנות לפחות 20+ לינקים איכותיים נוספים</div>`;
+  } else if(liveRatioPct<25){
+    alertHtml=`<div class="link-alert info">📉 רק ${liveRatioPct}% מהלינקים שנרכשו עדיין חיים (${bl.live_refdomains}/${bl.all_time_refdomains}) — מומלץ לרכוש לינקים חדשים להחלפת האבודים</div>`;
+  } else {
+    alertHtml=`<div class="link-alert ok">✓ פרופיל הלינקים במצב תקין — ${bl.live_refdomains} referring domains חיים (${liveRatioPct}% live rate)</div>`;
+  }
+
+  // traffic value in $
+  const tvStr=org.traffic_value_usd>0?`≈ $${org.traffic_value_usd.toLocaleString()}/mo`:'–';
+
+  const statsHtml=`
+  <div class="ahrefs-stats">
+    <div class="as-card">
+      <div class="as-lbl">Live Backlinks</div>
+      <div class="as-val">${bl.live||0}</div>
+      <div class="as-sub">of ${(bl.all_time||0).toLocaleString()} all-time</div>
+    </div>
+    <div class="as-card">
+      <div class="as-lbl">Live Ref. Domains</div>
+      <div class="as-val" style="color:${lrColor}">${bl.live_refdomains||0}</div>
+      <div class="live-ratio-bar">
+        <div class="lrb-bg"><div class="lrb-fill" style="width:${liveRatioPct}%;background:${lrColor}"></div></div>
+        <span style="font-size:.65rem;color:var(--sub)">${liveRatioPct}%</span>
+      </div>
+      <div class="as-sub">of ${bl.all_time_refdomains||0} total</div>
+    </div>
+    <div class="as-card">
+      <div class="as-lbl">Organic Traffic</div>
+      <div class="as-val">${(org.traffic||0).toLocaleString()}</div>
+      <div class="as-sub">${tvStr}</div>
+    </div>
+    <div class="as-card">
+      <div class="as-lbl">Org. Keywords</div>
+      <div class="as-val">${org.keywords||0}</div>
+    </div>
+    <div class="as-card">
+      <div class="as-lbl">Domain</div>
+      <div class="as-val" style="font-size:.75rem;word-break:break-all;color:var(--sub)">${esc(dd.domain)}</div>
+    </div>
+  </div>`;
+
+  // recent referring domains table
+  const rdRows=rds.map(r=>{
+    const status=isSuspiciousLink(r.domain,r.is_spam);
+    const statusHtml=status==='spam'
+      ?`<span class="lq-spam">✗ Spam</span>`
+      :status==='suspicious'
+        ?`<span class="lq-suspicious">~ Suspicious</span>`
+        :`<span class="lq-ok">✓ OK</span>`;
+    return`<tr>
+      <td style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(r.domain)}">${esc(r.domain)}</td>
+      <td>${drBadge(r.dr)}</td>
+      <td style="color:var(--sub);font-size:.78rem">${esc(r.first_seen)}</td>
+      <td>${statusHtml}</td>
+    </tr>`;
+  }).join('');
+
+  const spamCount=rds.filter(r=>isSuspiciousLink(r.domain,r.is_spam)!=='ok').length;
+  const spamNote=spamCount>0?`<span style="color:var(--yellow);font-size:.7rem;margin-left:8px">⚠ ${spamCount} suspicious in last 10</span>`:'';
+
+  return`
+<div class="ahrefs-section">
+  <div class="det-title">🔗 SEO &amp; Backlinks — Ahrefs <span class="ahrefs-updated">עודכן ${esc(ahrefsData.__updated__||'2026-05-04')}</span></div>
+  ${statsHtml}
+  ${alertHtml}
+  <div class="det-title" style="margin-bottom:8px">Referring Domains חדשים <small style="text-transform:none;letter-spacing:0;font-size:.65rem;color:var(--sub)">(10 אחרונים לפי תאריך גילוי)</small>${spamNote}</div>
+  <div class="kw-wrap">
+    <table class="kw-table">
+      <thead><tr><th>Domain</th><th>DR</th><th>First Seen</th><th>Quality</th></tr></thead>
+      <tbody>${rdRows||'<tr><td colspan="4" style="color:var(--sub)">No data</td></tr>'}</tbody>
+    </table>
+  </div>
+</div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RENDER CAMPAIGN ROW
+═══════════════════════════════════════════════════════════ */
 
 function renderCampaign(c,idx){
   const id=`c${idx}`;
@@ -291,7 +440,7 @@ function renderCampaign(c,idx){
   const solvW=Math.min(solv,100);
 
   return`
-<div class="camp-card" id="${id}" data-key="${esc(c.report_key)}" data-next="${esc(c.next_run_date||'')}">
+<div class="camp-card" id="${id}" data-key="${esc(c.report_key)}" data-next="${esc(c.next_run_date||'')}" data-name="${esc(c.name)}">
   <div class="camp-row" onclick="toggleCard('${id}')">
     <!-- always visible: name + sub + mobile pills -->
     <div class="row-main">
@@ -344,6 +493,7 @@ async function toggleCard(id){
   if(!open) return;
 
   const key=card.dataset.key;
+  const name=card.dataset.name||'';
   const det=document.getElementById(id+'-det');
   if(detailCache[key]){det.innerHTML=detailCache[key];return;}
 
@@ -375,7 +525,7 @@ async function toggleCard(id){
     // persist in localStorage so we accumulate even across refreshes
     saveHistory(key,trendData);
 
-    const html=renderDetail(data,trendData,id);
+    const html=renderDetail(data,trendData,id,name);
     detailCache[key]=html;
     det.innerHTML=html;
 
@@ -399,7 +549,7 @@ function saveHistory(key,arr){
 /* ═══════════════════════════════════════════════════════════
    RENDER DETAIL PANEL
 ═══════════════════════════════════════════════════════════ */
-function renderDetail(d,trendData,id){
+function renderDetail(d,trendData,id,campaignName){
   const rd=d.run_data||{};
   const bk=rd.breakdown||{};
   const kws=rd.by_keyword||[];
@@ -499,8 +649,11 @@ function renderDetail(d,trendData,id){
       <td class="${solvCls(k.solv)}">${n(k.solv)}%</td>
     </tr>`).join('');
 
+  const ahrefsHtml=renderAhrefsSection(campaignName);
+
   return`
 ${trendHtml}
+${ahrefsHtml}
 
 <div class="bk-grid">
   <div>
@@ -632,11 +785,17 @@ function setStatus(state,msg){
 async function init(){
   clearTimeout(timer);
   setStatus('spin','Fetching…');
-  // destroy all chart instances on refresh
   Object.values(chartInstances).forEach(c=>{try{c.destroy()}catch{}});
   chartInstances={};
-  // clear detail cache so fresh data loads
   Object.keys(detailCache).forEach(k=>delete detailCache[k]);
+
+  // load Ahrefs static data (fire-and-forget, no cache bust — stays warm)
+  try{
+    const r=await fetch(AHREFS_JSON);
+    const j=await r.json();
+    ahrefsData=j.domains||{};
+    ahrefsData.__updated__=j.updated||'';
+  }catch{}
 
   try{
     const camps=await fetchAllCampaigns();
